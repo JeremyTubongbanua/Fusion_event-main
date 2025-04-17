@@ -4,9 +4,9 @@ import numpy as np
 import cv2
 import pygame
 import torch
-from pygame.locals import *
+from pygame.locals import QUIT, MOUSEBUTTONDOWN, MOUSEBUTTONUP, MOUSEWHEEL, MOUSEMOTION
 import glob
-import time
+# Removed unused import
 import json
 from ui.button import Button
 from ui.slider import Slider
@@ -295,7 +295,7 @@ class SceneAnalyzer:
                             break
                     
                     # Handle map center button
-                    for i, button_rect in enumerate(self.map_buttons):
+                    for button_rect in self.map_buttons:  # Removed unused variable 'i'
                         if button_rect.collidepoint(mouse_pos):
                             self.map_view.handle_center_click()
                             break
@@ -325,7 +325,7 @@ class SceneAnalyzer:
                     self.process_scene(self.current_scene, reprocess=True)
             
             # Update map view sliders
-            map_sliders_changed = self.map_view.update_sliders(mouse_pos, mouse_pressed)
+            self.map_view.update_sliders(mouse_pos, mouse_pressed)  # Removed unused variable 'map_sliders_changed'
             
             # Update UI hover states
             self.scene_list_button.check_hover(mouse_pos)
@@ -606,6 +606,9 @@ class SceneAnalyzer:
                 'distance_val': distance_val
             })
             
+            # Print bounding box info to console
+            print(f"Car A - Person {idx}: BBox=({x1}, {y1}, {x2}, {y2}), Confidence={conf:.2f}, Distance={distance_str}")
+            
             box_color = (0, 255, 0)
             if distance_val is not None:
                 if distance_val < 1.5:
@@ -657,6 +660,9 @@ class SceneAnalyzer:
                 'distance': distance_str,
                 'distance_val': distance_val
             })
+            
+            # Print bounding box info to console
+            print(f"Car B - Person {idx}: BBox=({x1}, {y1}, {x2}, {y2}), Confidence={conf:.2f}, Distance={distance_str}")
             
             box_color = (0, 255, 0)
             if distance_val is not None:
