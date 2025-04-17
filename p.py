@@ -103,6 +103,75 @@ def read_all_json_files(directory_path):
     
     return all_data
 
+def create_control_panel(screen_width, screen_height, background_width, all_json_data, initial_values):
+    control_panel = {}
+    
+    control_panel_width = 400  # Increased from 300 to allow more space
+    control_panel_x = background_width + 20
+    
+    font = pygame.font.Font(None, 20)
+    title_font = pygame.font.Font(None, 28)
+    
+    sliders_y_start = 80
+    slider_spacing = 60
+    
+    slider_width = control_panel_width - 60  # Increased padding
+    
+    control_panel["sliders"] = [
+        Slider(control_panel_x + 30, sliders_y_start, slider_width, 0.1, 100.0, initial_values["scale_x"], "Scale X Factor"),
+        Slider(control_panel_x + 30, sliders_y_start + slider_spacing, slider_width, 0.1, 100.0, initial_values["scale_y"], "Scale Y Factor"),
+        Slider(control_panel_x + 30, sliders_y_start + slider_spacing*2, slider_width, 0, background_width, initial_values["offset_x"], "X Offset"),
+        Slider(control_panel_x + 30, sliders_y_start + slider_spacing*3, slider_width, 0, screen_height, initial_values["offset_y"], "Y Offset"),
+        Slider(control_panel_x + 30, sliders_y_start + slider_spacing*4, slider_width, 0.1, 3.0, initial_values["image_scale_x"], "Image Scale X"),
+        Slider(control_panel_x + 30, sliders_y_start + slider_spacing*5, slider_width, 0.1, 3.0, initial_values["image_scale_y"], "Image Scale Y")
+    ]
+    
+    checkbox_y_start = sliders_y_start + slider_spacing*6 + 60  # Increased spacing
+    checkbox_spacing = 30  # Increased from 25
+    max_checkboxes_per_column = 8  # Reduced from 10 to prevent overflow
+    column_width = 200  # Increased from 150
+    
+    control_panel["file_checkboxes"] = []
+    for i, file_name in enumerate(all_json_data.keys()):
+        column = i // max_checkboxes_per_column
+        row = i % max_checkboxes_per_column
+        cb_x = control_panel_x + 30 + (column * column_width)
+        cb_y = checkbox_y_start + (row * checkbox_spacing)
+        checkbox = Checkbox(cb_x, cb_y, file_name)
+        control_panel["file_checkboxes"].append(checkbox)
+    
+    control_panel["title_font"] = title_font
+    control_panel["font"] = font
+    control_panel["x"] = control_panel_x
+    control_panel["width"] = control_panel_width
+    
+    return control_panel
+
+def draw_control_panel(screen, control_panel, current_values, show_labels):
+    panel_x = control_panel["x"]
+    panel_width = control_panel["width"]
+    panel_height = screen.get_height()
+    
+    title_font = control_panel["title_font"]
+    font = control_panel["font"]
+    
+    pygame.draw.rect(screen, (40, 40, 40), (panel_x - 20, 0, panel_width + 40, panel_height))
+    
+    title_text = title_font.render("Adjustment Controls", True, (200, 200, 200))
+    screen.blit(title_text, (panel_x + 10, 20))
+    
+    space_text = font.render("(Press SPACE to toggle labels)", True, (200, 200, 200))
+    screen.blit(space_text, (panel_x + 10, 50))
+    
+    for slider in control_panel["sliders"]:
+        slider.draw(screen, font)
+    
+    files_text = title_font.render("Files:", True, (200, 200, 200))
+    screen.blit(files_text, (panel_x + 10, control_panel["sliders"][-1].y + 60))
+    
+    for checkbox in control_panel["file_checkboxes"]:
+        checkbox.draw(screen, font)
+
 def visualize_car_locations(all_json_data):
     pygame.init()
     
@@ -116,14 +185,20 @@ def visualize_car_locations(all_json_data):
     
     base_width, base_height = background.get_size()
     
-    # Calculate required screen width to fit all checkboxes
-    screen_width = max(base_width, 1200)  # Ensure minimum width of 1200px for checkboxes
+    control_panel_width = 450  # Increased from 350
     
-    # Add extra height if there are many JSON files to show all checkboxes
     file_count = len(all_json_data)
-    extra_height = max(0, (file_count - 8) * 25)  # 25px per extra file beyond 8
+    columns_needed = (file_count + 7) // 8  # Calculate based on 8 checkboxes per column
     
-    screen_height = base_height + 250 + extra_height
+    if columns_needed > 2:
+        control_panel_width = max(control_panel_width, 250 * columns_needed)  # Ensure enough width for all columns
+    
+    screen_width = base_width + control_panel_width
+    screen_height = max(base_height, 700)
+    
+    if file_count > 16:  # If we have more than 2 columns of 8 checkboxes
+        screen_height = max(screen_height, 450 + (file_count // columns_needed) * 30)
+    
     screen = pygame.display.set_mode((screen_width, screen_height))
     pygame.display.set_caption("Car Locations with Adjustment Controls")
     
@@ -139,37 +214,16 @@ def visualize_car_locations(all_json_data):
     font_color = (255, 255, 255)
     font = pygame.font.Font(None, 20)
     
-    scale_x = 5.0
-    scale_y = 5.0
-    offset_x = screen_width // 2
-    offset_y = screen_height // 2 - 150  
-    image_scale_x = 1.0
-    image_scale_y = 1.0
+    initial_values = {
+        "scale_x": 5.0,
+        "scale_y": 5.0,
+        "offset_x": base_width // 2,
+        "offset_y": base_height // 2,
+        "image_scale_x": 1.0,
+        "image_scale_y": 1.0
+    }
     
-    sliders = [
-        Slider(50, screen_height - 230, 300, 0.1, 100.0, scale_x, "Scale X Factor"),
-        Slider(50, screen_height - 180, 300, 0.1, 100.0, scale_y, "Scale Y Factor"),
-        Slider(50, screen_height - 130, 300, 0, 10000, offset_x, "X Offset"),
-        Slider(50, screen_height - 80, 300, 0, screen_height - 250, offset_y, "Y Offset"),
-        Slider(400, screen_height - 230, 300, 0.1, 3.0, image_scale_x, "Image Scale X"),
-        Slider(400, screen_height - 180, 300, 0.1, 3.0, image_scale_y, "Image Scale Y")
-    ]
-    
-    file_checkboxes = []
-    # Organize checkboxes in columns if there are many files
-    checkbox_x = 750
-    checkbox_y = screen_height - 230
-    line_height = 25
-    max_checkboxes_per_column = 10
-    column_width = 200
-    
-    for i, file_name in enumerate(all_json_data.keys()):
-        column = i // max_checkboxes_per_column
-        row = i % max_checkboxes_per_column
-        cb_x = checkbox_x + (column * column_width)
-        cb_y = checkbox_y + (row * line_height)
-        checkbox = Checkbox(cb_x, cb_y, file_name)
-        file_checkboxes.append(checkbox)
+    control_panel = create_control_panel(screen_width, screen_height, base_width, all_json_data, initial_values)
     
     running = True
     show_labels = True
@@ -186,30 +240,32 @@ def visualize_car_locations(all_json_data):
                 if event.key == pygame.K_SPACE:
                     show_labels = not show_labels
             
-            for slider in sliders:
+            for slider in control_panel["sliders"]:
                 if slider.handle_event(event):
                     need_update = True
             
-            for checkbox in file_checkboxes:
+            for checkbox in control_panel["file_checkboxes"]:
                 if checkbox.handle_event(event):
                     need_update = True
         
-        scale_x = sliders[0].value
-        scale_y = sliders[1].value
-        offset_x = sliders[2].value
-        offset_y = sliders[3].value
-        image_scale_x = sliders[4].value
-        image_scale_y = sliders[5].value
+        current_values = {
+            "scale_x": control_panel["sliders"][0].value,
+            "scale_y": control_panel["sliders"][1].value,
+            "offset_x": control_panel["sliders"][2].value,
+            "offset_y": control_panel["sliders"][3].value,
+            "image_scale_x": control_panel["sliders"][4].value,
+            "image_scale_y": control_panel["sliders"][5].value
+        }
         
         screen.fill((0, 0, 0))
         
-        scaled_width = int(background.get_width() * image_scale_x)
-        scaled_height = int(background.get_height() * image_scale_y)
+        scaled_width = int(background.get_width() * current_values["image_scale_x"])
+        scaled_height = int(background.get_height() * current_values["image_scale_y"])
         scaled_background = pygame.transform.scale(background, (scaled_width, scaled_height))
         
         screen.blit(scaled_background, (0, 0))
         
-        visible_files = {checkbox.label: checkbox.checked for checkbox in file_checkboxes}
+        visible_files = {checkbox.label: checkbox.checked for checkbox in control_panel["file_checkboxes"]}
         
         for file_name, data in all_json_data.items():
             if visible_files.get(file_name, True):
@@ -217,8 +273,12 @@ def visualize_car_locations(all_json_data):
                     if "Location" in key:
                         car_id = key.split("_")[0]
                         location = value
-                        dot_x = int(offset_x + location[0] * scale_x)
-                        dot_y = int(offset_y - location[1] * scale_y)
+                        
+                        image_scale_x = current_values["image_scale_x"]
+                        image_scale_y = current_values["image_scale_y"]
+                        
+                        dot_x = int(location[0] * current_values["scale_x"] * image_scale_x + current_values["offset_x"] * image_scale_x)
+                        dot_y = int(current_values["offset_y"] * image_scale_y - location[1] * current_values["scale_y"] * image_scale_y)
                         
                         color_index = (hash(file_name + car_id)) % len(colors)
                         
@@ -229,32 +289,7 @@ def visualize_car_locations(all_json_data):
                             text = font.render(label, True, font_color)
                             screen.blit(text, (dot_x + 8, dot_y - 8))
         
-        pygame.draw.rect(screen, (40, 40, 40), (0, screen_height - 250, screen_width, 250))
-        
-        title_font = pygame.font.Font(None, 30)
-        title_text = title_font.render("Adjustment Controls (Press SPACE to toggle labels)", True, (200, 200, 200))
-        screen.blit(title_text, (50, screen_height - 250 + 10))
-        
-        param_text = font.render(
-            f"Data: Scale X: {scale_x:.2f}, Scale Y: {scale_y:.2f}, X Offset: {offset_x:.1f}, Y Offset: {offset_y:.1f}", 
-            True, (200, 200, 200)
-        )
-        screen.blit(param_text, (400, screen_height - 250 + 10))
-        
-        img_param_text = font.render(
-            f"Image: Scale X: {image_scale_x:.2f}, Scale Y: {image_scale_y:.2f}", 
-            True, (200, 200, 200)
-        )
-        screen.blit(img_param_text, (400, screen_height - 250 + 35))
-        
-        files_text = title_font.render("Files:", True, (200, 200, 200))
-        screen.blit(files_text, (checkbox_x, checkbox_y - 30))
-        
-        for slider in sliders:
-            slider.draw(screen, font)
-        
-        for checkbox in file_checkboxes:
-            checkbox.draw(screen, font)
+        draw_control_panel(screen, control_panel, current_values, show_labels)
         
         pygame.display.flip()
         clock.tick(60)
