@@ -17,7 +17,6 @@ class Slider:
         self.grabbed = False
         self.knob_radius = 10
         
-        # Calculate knob position
         self.update_knob_pos()
     
     def update_knob_pos(self):
@@ -26,20 +25,16 @@ class Slider:
         self.knob_pos = self.x + int(val_percent * self.width)
     
     def draw(self, screen, font):
-        # Draw slider track
         pygame.draw.line(screen, self.color, (self.x, self.y), (self.x + self.width, self.y), 3)
         
-        # Draw knob
         pygame.draw.circle(screen, self.color, (self.knob_pos, self.y), self.knob_radius)
         
-        # Draw label and value
         text = font.render(f"{self.label}: {self.value:.2f}", True, self.color)
         screen.blit(text, (self.x, self.y - 30))
     
     def handle_event(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
             mouse_pos = pygame.mouse.get_pos()
-            # Check if knob is clicked
             knob_rect = pygame.Rect(self.knob_pos - self.knob_radius, self.y - self.knob_radius, 
                                    self.knob_radius * 2, self.knob_radius * 2)
             if knob_rect.collidepoint(mouse_pos):
@@ -50,22 +45,19 @@ class Slider:
         
         elif event.type == pygame.MOUSEMOTION and self.grabbed:
             mouse_x = event.pos[0]
-            # Constrain to slider bounds
             if mouse_x < self.x:
                 mouse_x = self.x
             elif mouse_x > self.x + self.width:
                 mouse_x = self.x + self.width
             
-            # Update knob position
             self.knob_pos = mouse_x
             
-            # Update value based on position
             pos_percent = (self.knob_pos - self.x) / self.width
             self.value = self.min_val + pos_percent * (self.max_val - self.min_val)
             
-            return True  # Value changed
+            return True
         
-        return False  # Value not changed
+        return False
 
 def read_all_json_files(directory_path):
     all_data = {}
@@ -87,13 +79,11 @@ def read_all_json_files(directory_path):
 def visualize_car_locations(all_json_data):
     pygame.init()
     
-    # Load the background image
     background_image_path = "./images/scene.png"
     background = pygame.image.load(background_image_path)
     
-    # Set up the screen
     screen_width, screen_height = background.get_size()
-    screen_height += 200  # Extra space for sliders
+    screen_height += 250  # Extra space for sliders (increased for more sliders)
     screen = pygame.display.set_mode((screen_width, screen_height))
     pygame.display.set_caption("Car Locations with Adjustment Controls")
     
@@ -106,19 +96,25 @@ def visualize_car_locations(all_json_data):
         (0, 255, 255),  # Cyan
     ]
     
-    font_color = (255, 255, 255)  # White
+    font_color = (255, 255, 255)
     font = pygame.font.Font(None, 20)
     
-    # Initial parameters
-    scale_factor = 5.0
+    # Image transformation parameters
+    scale_x = 5.0
+    scale_y = 5.0
     offset_x = screen_width // 2
-    offset_y = screen_height // 2 - 100  # Adjusted for slider area
+    offset_y = screen_height // 2 - 150  # Adjusted for additional sliders
+    image_scale_x = 1.0
+    image_scale_y = 1.0
     
     # Create sliders
     sliders = [
-        Slider(50, screen_height - 150, 300, 0.1, 100.0, scale_factor, "Scale Factor"),
-        Slider(50, screen_height - 100, 300, 0, 10000, offset_x, "X Offset"),
-        Slider(50, screen_height - 50, 300, 0, screen_height - 200, offset_y, "Y Offset")
+        Slider(50, screen_height - 230, 300, 0.1, 100.0, scale_x, "Scale X Factor"),
+        Slider(50, screen_height - 180, 300, 0.1, 100.0, scale_y, "Scale Y Factor"),
+        Slider(50, screen_height - 130, 300, 0, 10000, offset_x, "X Offset"),
+        Slider(50, screen_height - 80, 300, 0, screen_height - 250, offset_y, "Y Offset"),
+        Slider(400, screen_height - 230, 300, 0.1, 3.0, image_scale_x, "Image Scale X"),
+        Slider(400, screen_height - 180, 300, 0.1, 3.0, image_scale_y, "Image Scale Y")
     ]
     
     running = True
@@ -136,21 +132,28 @@ def visualize_car_locations(all_json_data):
                 if event.key == pygame.K_SPACE:
                     show_labels = not show_labels
             
-            # Handle slider events
             for slider in sliders:
                 if slider.handle_event(event):
                     need_update = True
         
         # Get current values from sliders
-        scale_factor = sliders[0].value
-        offset_x = sliders[1].value
-        offset_y = sliders[2].value
+        scale_x = sliders[0].value
+        scale_y = sliders[1].value
+        offset_x = sliders[2].value
+        offset_y = sliders[3].value
+        image_scale_x = sliders[4].value
+        image_scale_y = sliders[5].value
         
         # Clear screen
         screen.fill((0, 0, 0))
         
-        # Draw background
-        screen.blit(background, (0, 0))
+        # Scale background image
+        scaled_width = int(background.get_width() * image_scale_x)
+        scaled_height = int(background.get_height() * image_scale_y)
+        scaled_background = pygame.transform.scale(background, (scaled_width, scaled_height))
+        
+        # Draw scaled background
+        screen.blit(scaled_background, (0, 0))
         
         # Process all JSON files and draw dots
         for file_name, data in all_json_data.items():
@@ -158,35 +161,38 @@ def visualize_car_locations(all_json_data):
                 if "Location" in key:
                     car_id = key.split("_")[0]
                     location = value
-                    dot_x = int(offset_x + location[0] * scale_factor)
-                    dot_y = int(offset_y - location[1] * scale_factor)
+                    dot_x = int(offset_x + location[0] * scale_x)
+                    dot_y = int(offset_y - location[1] * scale_y)
                     
-                    # Get color index based on combination of file_name and car_id
                     color_index = (hash(file_name + car_id)) % len(colors)
                     
-                    # Draw dot
                     pygame.draw.circle(screen, colors[color_index], (dot_x, dot_y), 6)
                     
-                    # Draw label if enabled
                     if show_labels:
                         label = f"{car_id} ({location[0]:.1f}, {location[1]:.1f})"
                         text = font.render(label, True, font_color)
                         screen.blit(text, (dot_x + 8, dot_y - 8))
         
         # Draw control panel background
-        pygame.draw.rect(screen, (40, 40, 40), (0, screen_height - 200, screen_width, 200))
+        pygame.draw.rect(screen, (40, 40, 40), (0, screen_height - 250, screen_width, 250))
         
         # Draw controls title
         title_font = pygame.font.Font(None, 30)
         title_text = title_font.render("Adjustment Controls (Press SPACE to toggle labels)", True, (200, 200, 200))
-        screen.blit(title_text, (50, screen_height - 190))
+        screen.blit(title_text, (50, screen_height - 250 + 10))
         
         # Draw current parameter values
         param_text = font.render(
-            f"Current Settings - Scale: {scale_factor:.2f}, X Offset: {offset_x:.1f}, Y Offset: {offset_y:.1f}", 
+            f"Data: Scale X: {scale_x:.2f}, Scale Y: {scale_y:.2f}, X Offset: {offset_x:.1f}, Y Offset: {offset_y:.1f}", 
             True, (200, 200, 200)
         )
-        screen.blit(param_text, (400, screen_height - 190))
+        screen.blit(param_text, (400, screen_height - 250 + 10))
+        
+        img_param_text = font.render(
+            f"Image: Scale X: {image_scale_x:.2f}, Scale Y: {image_scale_y:.2f}", 
+            True, (200, 200, 200)
+        )
+        screen.blit(img_param_text, (400, screen_height - 250 + 35))
         
         # Draw sliders
         for slider in sliders:
