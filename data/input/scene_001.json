@@ -1,0 +1,12 @@
+{
+  "CarA_Camera": "CameraA/A_001.png",
+  "CarA_Lidar": "LidarA/A_001.ply",
+  "CarA_Location": [-50.25553131103516, 19.79990005493164],
+  "CarA_Rotation": 90.15917205810548,
+  "CarA_Dimension": [4.791779518127441, 2.163450002670288, 1.4876600503921509],
+  "CarB_Camera": "CameraB/B_001.png",
+  "CarB_Lidar": "LidarB/B_001.ply",
+  "CarB_Location": [-35.94367599487305, 28.445274353027344],
+  "CarB_Rotation": 0.1591979712247848,
+  "CarB_Dimension": [4.791779518127441, 2.163450002670288, 1.4876600503921509]
+}
