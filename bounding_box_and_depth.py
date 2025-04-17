@@ -162,10 +162,10 @@ class MapView:
     
     def handle_center_click(self):
         # Reset view to default values
-        self.scale_x = 5.0
-        self.scale_y = 5.0
-        self.offset_x = self.width // 2
-        self.offset_y = self.height // 2
+        self.scale_x = 1.3
+        self.scale_y = 3.14
+        self.offset_x = 378
+        self.offset_y = 107
         
         # Update slider values to match
         self.scale_x_slider.value = self.scale_x
