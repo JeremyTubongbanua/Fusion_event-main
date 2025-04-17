@@ -11,6 +11,114 @@ import json
 from ui.button import Button
 from ui.slider import Slider
 
+class MapView:
+    def __init__(self, x, y, width, height, parent):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.parent = parent
+        self.scale_x = 5.0
+        self.scale_y = 5.0
+        self.offset_x = width // 2
+        self.offset_y = height // 2
+        self.background = None
+        self.load_background()
+        
+    def load_background(self):
+        bg_path = "./images/scene.png"
+        try:
+            self.background = pygame.image.load(bg_path)
+            orig_w, orig_h = self.background.get_size()
+            scale = min(self.width / orig_w, self.height / orig_h)
+            new_w, new_h = int(orig_w * scale), int(orig_h * scale)
+            self.background = pygame.transform.scale(self.background, (new_w, new_h))
+        except pygame.error:
+            self.background = pygame.Surface((self.width, self.height))
+            self.background.fill((20, 20, 20))
+            font = pygame.font.SysFont('Arial', 16)
+            text = font.render("Background image not found at ./images/scene.png", True, (200, 200, 200))
+            self.background.blit(text, (10, self.height//2 - 8))
+    
+    def draw(self, surface):
+        map_rect = pygame.Rect(self.x, self.y, self.width, self.height)
+        pygame.draw.rect(surface, (50, 50, 50), map_rect)
+        
+        bg_x = self.x + (self.width - self.background.get_width()) // 2
+        bg_y = self.y + (self.height - self.background.get_height()) // 2
+        surface.blit(self.background, (bg_x, bg_y))
+        
+        if self.parent.scene_data:
+            car_colors = [(255, 0, 0), (0, 255, 0)]  # Red for Car A, Green for Car B
+            
+            for i, car_id in enumerate(["CarA", "CarB"]):
+                location_key = f"{car_id}_Location"
+                if location_key in self.parent.scene_data:
+                    location = self.parent.scene_data[location_key]
+                    dot_x = int(self.x + self.offset_x + location[0] * self.scale_x * 5.0) + 250
+                    dot_y = int(self.y + self.offset_y - location[1] * self.scale_y * 13.0) + 100
+                    
+                    car_color = car_colors[i]
+                    
+                    # Draw car position
+                    pygame.draw.circle(surface, car_color, (dot_x, dot_y), 6)
+                    
+                    # Draw label
+                    font = pygame.font.SysFont('Arial', 14)
+                    label = f"{car_id} ({location[0]:.1f}, {location[1]:.1f})"
+                    text = font.render(label, True, (240, 240, 240))
+                    surface.blit(text, (dot_x + 10, dot_y - 7))
+                    
+                    # If we have rotation data, draw a direction indicator
+                    rotation_key = f"{car_id}_Rotation"
+                    if rotation_key in self.parent.scene_data:
+                        angle = self.parent.scene_data[rotation_key]
+                        rad_angle = np.radians(angle)
+                        end_x = dot_x + int(15 * np.cos(rad_angle))
+                        end_y = dot_y - int(15 * np.sin(rad_angle))
+                        pygame.draw.line(surface, car_color, (dot_x, dot_y), (end_x, end_y), 2)
+                        
+        # Draw map controls
+        controls_y = self.y + self.height - 60
+        font = pygame.font.SysFont('Arial', 14)
+        
+        scale_text = font.render(f"Scale: {self.scale_x:.1f}", True, (200, 200, 200))
+        surface.blit(scale_text, (self.x + 10, controls_y))
+        
+        # Draw scale buttons
+        scale_up = pygame.Rect(self.x + 100, controls_y, 20, 20)
+        pygame.draw.rect(surface, (100, 100, 100), scale_up)
+        pygame.draw.rect(surface, (200, 200, 200), scale_up, 1)
+        surface.blit(font.render("+", True, (200, 200, 200)), (self.x + 106, controls_y + 2))
+        
+        scale_down = pygame.Rect(self.x + 125, controls_y, 20, 20)
+        pygame.draw.rect(surface, (100, 100, 100), scale_down)
+        pygame.draw.rect(surface, (200, 200, 200), scale_down, 1)
+        surface.blit(font.render("-", True, (200, 200, 200)), (self.x + 131, controls_y + 2))
+        
+        # Draw center button
+        center_button = pygame.Rect(self.x + 155, controls_y, 60, 20)
+        pygame.draw.rect(surface, (100, 100, 100), center_button)
+        pygame.draw.rect(surface, (200, 200, 200), center_button, 1)
+        surface.blit(font.render("Center", True, (200, 200, 200)), (self.x + 161, controls_y + 2))
+        
+        return [scale_up, scale_down, center_button]
+    
+    def handle_click(self, pos, button_index):
+        if button_index == 0:  # Scale up
+            self.scale_x += 0.5
+            self.scale_y += 0.5
+        elif button_index == 1:  # Scale down
+            self.scale_x = max(0.5, self.scale_x - 0.5)
+            self.scale_y = max(0.5, self.scale_y - 0.5)
+        elif button_index == 2:  # Center
+            self.offset_x = self.width // 2
+            self.offset_y = self.height // 2
+    
+    def handle_drag(self, rel_x, rel_y):
+        self.offset_x += rel_x
+        self.offset_y += rel_y
+
 class SceneAnalyzer:
     def __init__(self):
         pygame.init()
@@ -47,6 +155,10 @@ class SceneAnalyzer:
         self.scan_scene_files()
         self.setup_ui()
         self.running = True
+        
+        self.map_view = MapView(360, 10, self.screen_width - 380, 300, self)
+        self.map_buttons = []
+        self.dragging_map = False
     
     def load_models(self):
         try:
@@ -99,21 +211,40 @@ class SceneAnalyzer:
     def run(self):
         clock = pygame.time.Clock()
         while self.running:
-            mouse_pressed = pygame.mouse.get_pressed()
             mouse_pos = pygame.mouse.get_pos()
+            mouse_pressed = pygame.mouse.get_pressed()
             
             for event in pygame.event.get():
                 if event.type == QUIT:
                     self.running = False
-                if event.type == MOUSEBUTTONDOWN:
+                elif event.type == MOUSEBUTTONDOWN:
                     for button, scene_path in self.scene_buttons:
                         adjusted_button = button.rect.copy()
                         adjusted_button.y -= self.scroll_y
                         if adjusted_button.collidepoint(mouse_pos):
                             self.process_scene(scene_path)
                             break
-                if event.type == MOUSEWHEEL:
+                    
+                    for i, button_rect in enumerate(self.map_buttons):
+                        if button_rect.collidepoint(mouse_pos):
+                            self.map_view.handle_click(mouse_pos, i)
+                            break
+                    
+                    map_area = pygame.Rect(
+                        self.map_view.x, self.map_view.y, 
+                        self.map_view.width, self.map_view.height - 60
+                    )
+                    if map_area.collidepoint(mouse_pos):
+                        self.dragging_map = True
+                
+                elif event.type == MOUSEBUTTONUP:
+                    self.dragging_map = False
+                
+                elif event.type == MOUSEWHEEL:
                     self.scroll_y = max(0, min(self.max_scroll, self.scroll_y - event.y * 20))
+                
+                elif event.type == MOUSEMOTION and self.dragging_map:
+                    self.map_view.handle_drag(event.rel[0], event.rel[1])
             
             slider_changed = self.confidence_slider.update(mouse_pos, mouse_pressed)
             if slider_changed and self.current_scene:
@@ -188,32 +319,34 @@ class SceneAnalyzer:
             no_data_text = self.font.render("No scene data loaded", True, self.text_color)
             self.screen.blit(no_data_text, (json_panel.x + 10, y_offset))
         
-        car_a_orig_panel = pygame.Rect(360, 10, (self.screen_width - 380) // 3, (self.screen_height - 30) // 2)
+        self.map_buttons = self.map_view.draw(self.screen)
+        
+        car_a_orig_panel = pygame.Rect(360, 320, (self.screen_width - 380) // 3, (self.screen_height - 340) // 2)
         pygame.draw.rect(self.screen, self.panel_color, car_a_orig_panel)
         self.draw_panel_title(car_a_orig_panel, "Car A Original")
         
-        car_a_yolo_panel = pygame.Rect(370 + (self.screen_width - 380) // 3, 10, 
-                                     (self.screen_width - 380) // 3, (self.screen_height - 30) // 2)
+        car_a_yolo_panel = pygame.Rect(370 + (self.screen_width - 380) // 3, 320, 
+                                     (self.screen_width - 380) // 3, (self.screen_height - 340) // 2)
         pygame.draw.rect(self.screen, self.panel_color, car_a_yolo_panel)
         self.draw_panel_title(car_a_yolo_panel, "Car A Detection")
         
-        car_a_depth_panel = pygame.Rect(380 + 2 * (self.screen_width - 380) // 3, 10, 
-                                      (self.screen_width - 380) // 3, (self.screen_height - 30) // 2)
+        car_a_depth_panel = pygame.Rect(380 + 2 * (self.screen_width - 380) // 3, 320, 
+                                      (self.screen_width - 380) // 3, (self.screen_height - 340) // 2)
         pygame.draw.rect(self.screen, self.panel_color, car_a_depth_panel)
         self.draw_panel_title(car_a_depth_panel, "Car A Depth Map")
         
-        car_b_orig_panel = pygame.Rect(360, 20 + (self.screen_height - 30) // 2, 
-                                     (self.screen_width - 380) // 3, (self.screen_height - 30) // 2)
+        car_b_orig_panel = pygame.Rect(360, 330 + (self.screen_height - 340) // 2, 
+                                     (self.screen_width - 380) // 3, (self.screen_height - 340) // 2)
         pygame.draw.rect(self.screen, self.panel_color, car_b_orig_panel)
         self.draw_panel_title(car_b_orig_panel, "Car B Original")
         
-        car_b_yolo_panel = pygame.Rect(370 + (self.screen_width - 380) // 3, 20 + (self.screen_height - 30) // 2, 
-                                     (self.screen_width - 380) // 3, (self.screen_height - 30) // 2)
+        car_b_yolo_panel = pygame.Rect(370 + (self.screen_width - 380) // 3, 330 + (self.screen_height - 340) // 2, 
+                                     (self.screen_width - 380) // 3, (self.screen_height - 340) // 2)
         pygame.draw.rect(self.screen, self.panel_color, car_b_yolo_panel)
         self.draw_panel_title(car_b_yolo_panel, "Car B Detection")
         
-        car_b_depth_panel = pygame.Rect(380 + 2 * (self.screen_width - 380) // 3, 20 + (self.screen_height - 30) // 2, 
-                                      (self.screen_width - 380) // 3, (self.screen_height - 30) // 2)
+        car_b_depth_panel = pygame.Rect(380 + 2 * (self.screen_width - 380) // 3, 330 + (self.screen_height - 340) // 2, 
+                                      (self.screen_width - 380) // 3, (self.screen_height - 340) // 2)
         pygame.draw.rect(self.screen, self.panel_color, car_b_depth_panel)
         self.draw_panel_title(car_b_depth_panel, "Car B Depth Map")
         
@@ -444,9 +577,11 @@ class SceneAnalyzer:
             cv2.rectangle(img, (x1, y1), (x2, y2), box_color, 2)
             label = f"{len(self.detected_persons_b)}"
             cv2.putText(img, label, (x1+5, y1+20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, box_color, 2)
+        
         self.car_b_detection = self.numpy_to_pygame(img)
         total_persons = len(self.detected_persons_a) + len(self.detected_persons_b)
         self.status_message = f"Total: {total_persons} persons detected across both cameras (threshold: {self.confidence_threshold:.2f})"
+    
     def numpy_to_pygame(self, img_array):
         img_array = np.flip(img_array, axis=2)
         img_surface = pygame.surfarray.make_surface(np.transpose(img_array, (1, 0, 2)))
