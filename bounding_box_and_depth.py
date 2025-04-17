@@ -125,7 +125,9 @@ class MapView:
                     rotation_key = f"{car_id}_Rotation"
                     if rotation_key in self.parent.scene_data:
                         angle = self.parent.scene_data[rotation_key]
-                        rad_angle = np.radians(angle)
+                        # Adjust angle by adding 90 degrees and mirroring vertically
+                        adjusted_angle = -(angle - 90)
+                        rad_angle = np.radians(adjusted_angle)
                         end_x = dot_x + int(20 * np.cos(rad_angle))
                         end_y = dot_y - int(20 * np.sin(rad_angle))
                         pygame.draw.line(surface, car_color, (dot_x, dot_y), (end_x, end_y), 3)
@@ -137,6 +139,7 @@ class MapView:
                         arrow_x2 = end_x + int(8 * np.cos(arrow_angle2))
                         arrow_y2 = end_y - int(8 * np.sin(arrow_angle2))
                         pygame.draw.polygon(surface, car_color, [(end_x, end_y), (arrow_x1, arrow_y1), (arrow_x2, arrow_y2)])
+            
         
         # Draw data parameters
         font = pygame.font.SysFont('Arial', 14)
